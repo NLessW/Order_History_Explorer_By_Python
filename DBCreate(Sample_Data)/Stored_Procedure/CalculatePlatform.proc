@@ -1,0 +1,42 @@
+CREATE DEFINER=`root`@`localhost` PROCEDURE `CalculatePlatformFee`(IN billing_year INT)
+BEGIN
+    -- 누적 플랫폼 사용료 계산 및 업데이트
+    UPDATE shopping_malls s
+    SET s.accumulated_platform_fee = s.accumulated_platform_fee + 
+        COALESCE(
+            (SELECT 
+                SUM(o.order_amount * 
+                    CASE
+                        WHEN DATEDIFF(CURDATE(), s.entry_date) <= 365 THEN 0.001
+                        WHEN DATEDIFF(CURDATE(), s.entry_date) > 365 AND DATEDIFF(CURDATE(), s.entry_date) <= 730 THEN 0.002
+                        WHEN DATEDIFF(CURDATE(), s.entry_date) > 730 THEN 0.01
+                        ELSE 0
+                    END)
+            FROM orders o
+            JOIN products p ON s.id = p.mall_id
+            WHERE s.id = p.mall_id AND (billing_year IS NULL OR YEAR(o.order_date) = billing_year)
+            GROUP BY s.id), 0
+        );
+
+    -- 결과 반환
+    SELECT
+        s.id AS mall_id,
+        s.name AS mall_name,
+        s.entry_date AS entry_date,
+        s.contact_number AS contact_number,
+        GROUP_CONCAT(p.name) AS products,
+        s.accumulated_platform_fee AS accumulated_platform_fee,
+        COALESCE(SUM(o.order_amount), 0) AS total_sales,
+        COALESCE(SUM(o.order_amount * 
+            CASE
+                WHEN DATEDIFF(CURDATE(), s.entry_date) <= 365 THEN 0.001
+                WHEN DATEDIFF(CURDATE(), s.entry_date) > 365 AND DATEDIFF(CURDATE(), s.entry_date) <= 730 THEN 0.002
+                WHEN DATEDIFF(CURDATE(), s.entry_date) > 730 THEN 0.01
+                ELSE 0
+            END), 0) AS platform_fee
+    FROM shopping_malls s
+    LEFT JOIN products p ON s.id = p.mall_id
+    LEFT JOIN orders o ON p.id = o.product_id
+    WHERE (billing_year IS NULL OR YEAR(o.order_date) = billing_year) OR o.order_date IS NULL
+    GROUP BY s.id;
+END
