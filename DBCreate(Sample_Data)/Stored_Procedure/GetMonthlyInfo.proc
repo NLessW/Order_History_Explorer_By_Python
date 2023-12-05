@@ -1,0 +1,37 @@
+CREATE DEFINER=`root`@`localhost` PROCEDURE `GetMonthlyInfo`(IN userId VARCHAR(255))
+BEGIN
+    -- C.8: 사용자는 자신의 월간 구매액
+    SELECT
+        COALESCE(SUM(o.order_amount), 0) AS monthly_purchase_amount,
+        YEAR(c.entryD) AS start_year,
+        MONTH(c.entryD) AS start_month,
+        YEAR(CURDATE()) AS current_year,
+        MONTH(CURDATE()) AS current_month
+    FROM customers c
+    LEFT JOIN orders o ON c.id = o.customer_id
+    WHERE c.user_Login_id = userId
+    GROUP BY start_year, start_month, current_year, current_month;
+
+    -- C.9: 사용자는 구매 이력
+    SELECT
+        o.id AS order_id,
+        p.name AS product_name,
+        s.name AS mall_name,
+        o.order_date,
+        o.order_amount,
+        YEAR(o.order_date) AS order_year,
+        MONTH(o.order_date) AS order_month
+    FROM customers c
+    LEFT JOIN orders o ON c.id = o.customer_id
+    LEFT JOIN products p ON o.product_id = p.id
+    LEFT JOIN shopping_malls s ON p.mall_id = s.id
+    WHERE c.user_Login_id = userId;
+
+    -- C.10: 사용자는 월간 마일리지 자료
+    SELECT
+        date,
+        used_mileage,
+        remaining_mileage
+    FROM mileage_history
+    WHERE customer_id = (SELECT id FROM customers WHERE user_Login_id = userId);
+END
