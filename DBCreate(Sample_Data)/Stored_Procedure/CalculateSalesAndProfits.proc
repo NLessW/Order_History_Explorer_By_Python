@@ -1,0 +1,58 @@
+CREATE DEFINER=`root`@`localhost` PROCEDURE `CalculateSalesAndProfits`()
+BEGIN
+    -- B.3: 상품별 월간 판매액
+    SELECT
+        p.mall_id,
+        p.name AS product_name,
+        MONTH(o.order_date) AS month,
+        SUM(o.order_amount) AS monthly_sales
+    FROM products p
+    LEFT JOIN orders o ON p.id = o.product_id
+    GROUP BY p.mall_id, p.name, MONTH(o.order_date);
+
+    -- B.4: 고객별 월간 판매액
+    SELECT
+        c.id AS customer_id,
+        c.name AS customer_name,
+        MONTH(o.order_date) AS month,
+        SUM(o.order_amount) AS monthly_sales
+    FROM customers c
+    LEFT JOIN orders o ON c.id = o.customer_id
+    GROUP BY c.id, c.name, MONTH(o.order_date);
+
+    -- B.5: 년간 판매액
+    SELECT
+        p.mall_id,
+        YEAR(o.order_date) AS year,
+        SUM(o.order_amount) AS yearly_sales
+    FROM products p
+    LEFT JOIN orders o ON p.id = o.product_id
+    GROUP BY p.mall_id, YEAR(o.order_date);
+
+    -- B.6: 고객의 마일리지 관리
+    SELECT
+        c.id AS customer_id,
+        c.name AS customer_name,
+        SUM(mh.used_mileage) AS used_mileage,
+        SUM(mh.remaining_mileage) AS remaining_mileage
+    FROM customers c
+    LEFT JOIN mileage_history mh ON c.id = mh.customer_id
+    GROUP BY c.id, c.name;
+
+    -- B.7: 년간 순수 이익금
+    SELECT
+        s.id AS mall_id,
+        s.name AS mall_name,
+        YEAR(o.order_date) AS year,
+        SUM(o.order_amount) - (SUM(o.order_amount) * 
+            CASE
+                WHEN DATEDIFF(CURDATE(), s.entry_date) <= 365 THEN 0.001
+                WHEN DATEDIFF(CURDATE(), s.entry_date) > 365 AND DATEDIFF(CURDATE(), s.entry_date) <= 730 THEN 0.002
+                ELSE 0.001
+            END) AS yearly_net_profit
+    FROM shopping_malls s
+    LEFT JOIN products p ON s.id = p.mall_id
+    LEFT JOIN orders o ON p.id = o.product_id
+    WHERE o.order_date IS NOT NULL
+    GROUP BY s.id, YEAR(o.order_date);
+END
